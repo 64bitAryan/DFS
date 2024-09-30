@@ -1,9 +1,20 @@
 package main
 
 import (
-	"fmt"
+	"log"
+
+	"github.com/64bitAryan/distributedFileSystem/p2p"
 )
 
 func main() {
-	fmt.Println("Main file")
+	tcpOpts := p2p.TCPTransportOpts{
+		ListenAdder:  ":3000",
+		HandshakeFun: p2p.NOPHandshakeFunc,
+		Decoder:      &p2p.GOBDecoder{},
+	}
+	tr := p2p.NewTCPTransport(tcpOpts)
+	if err := tr.ListenAndAccept(); err != nil {
+		log.Fatal(err)
+	}
+	select {}
 }

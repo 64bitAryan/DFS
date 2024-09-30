@@ -1,6 +1,6 @@
 package p2p
 
-type Peer struct{}
+type Peer interface{}
 
 type Transport interface {
 	ListenAndAccept() error
