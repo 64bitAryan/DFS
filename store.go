@@ -2,16 +2,17 @@ package main
 
 import (
 	"bytes"
-	"crypto/md5"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/fs"
+	"log"
 	"os"
 	"strings"
 )
 
-func CASPathTransformerFunction(key string) string {
+func CASPathTransformerFunction(key string) PathKey {
 	hash := sha1.Sum([]byte(key))
 	hashStr := hex.EncodeToString(hash[:])
 	blockSize := 5
@@ -23,10 +24,22 @@ func CASPathTransformerFunction(key string) string {
 		paths[i] = hashStr[from:to]
 	}
 
-	return strings.Join(paths, "/")
+	return PathKey{
+		PathName: strings.Join(paths, "/"),
+		FileName: hashStr,
+	}
 }
 
-type PathTransformFunction func(string) string
+type PathTransformFunction func(string) PathKey
+
+type PathKey struct {
+	PathName string
+	FileName string
+}
+
+func (p *PathKey) FullPath() string {
+	return fmt.Sprintf("%s/%s", p.PathName, p.FileName)
+}
 
 var DefaultPathTransformFun = func(key string) string {
 	return key
@@ -46,23 +59,54 @@ func NewStore(opts StoreOpts) *Store {
 	}
 }
 
-func (s *Store) WriteStream(key string, r io.Reader) error {
+func (s *Store) Has(key string) bool {
+	pathKey := s.PathTransformFunction(key)
+
+	_, err := os.Stat(pathKey.FullPath())
+	if err == fs.ErrNotExist {
+		return false
+	}
+
+	return true
+}
+
+func (s *Store) Delete(key string) error {
+	pathKey := s.PathTransformFunction(key)
+	defer func() {
+		log.Printf("deleted [%s] from disk", pathKey.FileName)
+	}()
+	return os.RemoveAll(pathKey.FullPath())
+}
+
+func (s *Store) Read(key string) (io.Reader, error) {
+	f, err := s.readStream(key)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+
+	buf := new(bytes.Buffer)
+	_, err = io.Copy(buf, f)
+
+	return buf, err
+}
+
+func (s *Store) readStream(key string) (io.ReadCloser, error) {
+	pathKey := s.PathTransformFunction(key)
+	return os.Open(pathKey.FullPath())
+}
+
+func (s *Store) writeStream(key string, r io.Reader) error {
 	// transforming the key to the path
-	path := s.PathTransformFunction(key)
+	pathKey := s.PathTransformFunction(key)
 
 	// making all the directories that path returns
-	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+	if err := os.MkdirAll(pathKey.PathName, os.ModePerm); err != nil {
 		return err
 	}
 
-	// creating buffer, hashing the filename and
-	// joining with path
-	buf := new(bytes.Buffer)
-	io.Copy(buf, r)
-
-	fileNameBytes := md5.Sum(buf.Bytes())
-	fileName := hex.EncodeToString(fileNameBytes[:])
-	pathAndFileName := path + "/" + fileName
+	pathAndFileName := pathKey.FullPath()
 
 	// creating the file with path
 	f, err := os.Create(pathAndFileName)
@@ -72,7 +116,7 @@ func (s *Store) WriteStream(key string, r io.Reader) error {
 	}
 
 	// copying from buf to file
-	n, err := io.Copy(f, buf)
+	n, err := io.Copy(f, r)
 	if err != nil {
 		return err
 	}
