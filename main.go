@@ -1,36 +1,29 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/64bitAryan/distributedFileSystem/p2p"
 )
 
-func OnPeer(peer p2p.Peer) error {
-	peer.Close()
-	// fmt.Println("doing some login with the peer outside of TCP transport")
-	return nil
-}
-
 func main() {
-	tcpOpts := p2p.TCPTransportOpts{
+	tcpTransportOpts := p2p.TCPTransportOpts{
 		ListenAdder:  ":3000",
 		HandshakeFun: p2p.NOPHandshakeFunc,
 		Decoder:      &p2p.DefaultDecoder{},
-		OnPeer:       OnPeer,
+		//TODO: OnPeer func
+	}
+	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
+
+	fileOpts := FileServerOpts{
+		StorageRoot:           "3000_network",
+		PathTransformFunction: CASPathTransformerFunction,
+		Transport:             *tcpTransport,
 	}
 
-	tr := p2p.NewTCPTransport(tcpOpts)
+	s := NewFileServer(fileOpts)
 
-	go func() {
-		for {
-			msg := <-tr.Consume()
-			fmt.Printf("%+v\n", msg)
-		}
-	}()
-
-	if err := tr.ListenAndAccept(); err != nil {
+	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
 	select {}

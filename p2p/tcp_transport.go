@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"log"
 	"net"
 )
 
@@ -59,6 +60,8 @@ func (t *TCPTransport) ListenAndAccept() error {
 	}
 	t.listener = ln
 	go t.startAcceptLoop()
+	// message that listener is up nd running
+	log.Printf("TCP listening on port %s", t.ListenAdder)
 	return nil
 }
 
