@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -45,7 +46,7 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 
 // 3:50:00 // continue form here
 func (t *TCPTransport) Close() error {
-	return nil
+	return t.listener.Close()
 }
 
 /*
@@ -73,6 +74,11 @@ func (t *TCPTransport) ListenAndAccept() error {
 func (t *TCPTransport) startAcceptLoop() {
 	for {
 		conn, err := t.listener.Accept()
+
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+
 		if err != nil {
 			fmt.Printf("TCP: Accept error: %s", err)
 		}

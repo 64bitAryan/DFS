@@ -36,6 +36,11 @@ func (s *FileServer) Stop() {
 }
 
 func (s *FileServer) loop() {
+	defer func() {
+		s.Transport.Close()
+		fmt.Println("File server stopped due to user quit channel")
+	}()
+
 	for {
 		select {
 		case msg := <-s.Transport.Consume():
