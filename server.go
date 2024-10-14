@@ -1,6 +1,10 @@
 package main
 
-import "github.com/64bitAryan/distributedFileSystem/p2p"
+import (
+	"fmt"
+
+	"github.com/64bitAryan/distributedFileSystem/p2p"
+)
 
 type FileServerOpts struct {
 	StorageRoot           string
@@ -11,7 +15,8 @@ type FileServerOpts struct {
 type FileServer struct {
 	FileServerOpts
 
-	Store *Store
+	store  *Store
+	quitCh chan struct{}
 }
 
 func NewFileServer(opts FileServerOpts) *FileServer {
@@ -21,13 +26,33 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 	}
 	return &FileServer{
 		FileServerOpts: opts,
-		Store:          NewStore(storeOpts),
+		store:          NewStore(storeOpts),
+		quitCh:         make(chan struct{}),
 	}
 }
 
-func (s *FileServerOpts) Start() error {
+func (s *FileServer) Stop() {
+	close(s.quitCh)
+}
+
+func (s *FileServer) loop() {
+	for {
+		select {
+		case msg := <-s.Transport.Consume():
+			fmt.Println(msg)
+		case <-s.quitCh:
+			return
+
+		}
+	}
+}
+
+func (s *FileServer) Start() error {
 	if err := s.Transport.ListenAndAccept(); err != nil {
 		return err
 	}
+
+	s.loop()
+
 	return nil
 }

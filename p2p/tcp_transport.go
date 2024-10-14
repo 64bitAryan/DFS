@@ -43,6 +43,11 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	}
 }
 
+// 3:50:00 // continue form here
+func (t *TCPTransport) Close() error {
+	return nil
+}
+
 /*
 consume implements the transport interface,
 which will return read-only channel for reading

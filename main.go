@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/64bitAryan/distributedFileSystem/p2p"
 )
@@ -23,8 +24,13 @@ func main() {
 
 	s := NewFileServer(fileOpts)
 
+	go func() {
+		time.Sleep(time.Second * 3)
+		s.Stop()
+	}()
+
 	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
-	select {}
+
 }
