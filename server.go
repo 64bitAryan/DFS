@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/64bitAryan/distributedFileSystem/p2p"
 )
@@ -10,6 +11,7 @@ type FileServerOpts struct {
 	StorageRoot           string
 	PathTransformFunction PathTransformFunction
 	Transport             p2p.TCPTransport
+	BootStrapNodes        []string
 }
 
 type FileServer struct {
@@ -52,11 +54,27 @@ func (s *FileServer) loop() {
 	}
 }
 
+func (s *FileServer) bootStrapNetwork() error {
+	for _, addr := range s.BootStrapNodes {
+		if len(addr) == 0 {
+			continue
+		}
+
+		go func(addr string) {
+			if err := s.Transport.Dial(addr); err != nil {
+				log.Println("dial error: ", err)
+			}
+		}(addr)
+	}
+	return nil
+}
+
 func (s *FileServer) Start() error {
 	if err := s.Transport.ListenAndAccept(); err != nil {
 		return err
 	}
 
+	s.bootStrapNetwork()
 	s.loop()
 
 	return nil

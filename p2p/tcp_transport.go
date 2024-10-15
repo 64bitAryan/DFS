@@ -49,6 +49,15 @@ func (t *TCPTransport) Close() error {
 	return t.listener.Close()
 }
 
+func (t *TCPTransport) Dial(addr string) error {
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+	go t.handleConn(conn, true)
+	return nil
+}
+
 /*
 consume implements the transport interface,
 which will return read-only channel for reading
@@ -83,11 +92,11 @@ func (t *TCPTransport) startAcceptLoop() {
 			fmt.Printf("TCP: Accept error: %s", err)
 		}
 		fmt.Printf("new incoming connection %+v\n", conn)
-		go t.handleConn(conn)
+		go t.handleConn(conn, false)
 	}
 }
 
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
 	defer func() {
@@ -95,7 +104,7 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 		conn.Close()
 	}()
 
-	peer := NewTCPPeer(conn, true)
+	peer := NewTCPPeer(conn, outbound)
 
 	if err = t.HandshakeFun(peer); err != nil {
 		return
