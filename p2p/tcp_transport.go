@@ -7,28 +7,11 @@ import (
 	"net"
 )
 
-type TCPPeer struct {
-	conn         net.Conn
-	outboundPeer bool
-}
-
-// close implements the peer interface
-func (p *TCPPeer) Close() error {
-	return p.conn.Close()
-}
-
 type TCPTransportOpts struct {
 	ListenAdder  string
 	HandshakeFun HandshakeFunc
 	Decoder      Decoder
 	OnPeer       func(Peer) error
-}
-
-func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
-	return &TCPPeer{
-		conn:         conn,
-		outboundPeer: outbound,
-	}
 }
 
 type TCPTransport struct {
@@ -42,17 +25,6 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 		TCPTransportOpts: opts,
 		rpcch:            make(chan RPC),
 	}
-}
-func (p *TCPPeer) Send(b []byte) error {
-	_, err := p.conn.Write(b)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *TCPPeer) RemoteAddr() net.Addr {
-	return p.conn.RemoteAddr()
 }
 
 func (t *TCPTransport) Close() error {

@@ -1,6 +1,8 @@
 package p2p
 
-import "net"
+import (
+	"net"
+)
 
 type Peer interface {
 	Send([]byte) error
