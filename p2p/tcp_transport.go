@@ -43,8 +43,18 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 		rpcch:            make(chan RPC),
 	}
 }
+func (p *TCPPeer) Send(b []byte) error {
+	_, err := p.conn.Write(b)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-// 3:50:00 // continue form here
+func (p *TCPPeer) RemoteAddr() net.Addr {
+	return p.conn.RemoteAddr()
+}
+
 func (t *TCPTransport) Close() error {
 	return t.listener.Close()
 }
@@ -109,11 +119,12 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	if err = t.HandshakeFun(peer); err != nil {
 		return
 	}
-
 	if t.OnPeer != nil {
 		if err = t.OnPeer(peer); err != nil {
 			return
 		}
+	} else {
+		fmt.Println("OnPeer is nil")
 	}
 
 	// Read Loop

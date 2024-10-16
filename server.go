@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/64bitAryan/distributedFileSystem/p2p"
 )
@@ -10,15 +11,17 @@ import (
 type FileServerOpts struct {
 	StorageRoot           string
 	PathTransformFunction PathTransformFunction
-	Transport             p2p.TCPTransport
+	Transport             *p2p.TCPTransport
 	BootStrapNodes        []string
 }
 
 type FileServer struct {
 	FileServerOpts
 
-	store  *Store
-	quitCh chan struct{}
+	peerLock sync.Mutex
+	peers    map[string]p2p.Peer
+	store    *Store
+	quitCh   chan struct{}
 }
 
 func NewFileServer(opts FileServerOpts) *FileServer {
@@ -30,11 +33,21 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		FileServerOpts: opts,
 		store:          NewStore(storeOpts),
 		quitCh:         make(chan struct{}),
+		peers:          make(map[string]p2p.Peer),
 	}
 }
 
 func (s *FileServer) Stop() {
 	close(s.quitCh)
+}
+
+func (s *FileServer) OnPeer(p p2p.Peer) error {
+	s.peerLock.Lock()
+	defer s.peerLock.Unlock()
+
+	s.peers[p.RemoteAddr().String()] = p
+	log.Printf("connected with remote %s", p.RemoteAddr())
+	return nil
 }
 
 func (s *FileServer) loop() {
