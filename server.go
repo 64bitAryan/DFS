@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
+	"io"
 	"log"
 	"sync"
 
@@ -24,6 +27,11 @@ type FileServer struct {
 	quitCh   chan struct{}
 }
 
+type Message struct {
+	From    string
+	Payload interface{}
+}
+
 func NewFileServer(opts FileServerOpts) *FileServer {
 	storeOpts := StoreOpts{
 		Root:                  opts.StorageRoot,
@@ -35,6 +43,41 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		quitCh:         make(chan struct{}),
 		peers:          make(map[string]p2p.Peer),
 	}
+}
+
+type DataMessage struct {
+	Key  string
+	Data []byte
+}
+
+func (s *FileServer) broadcast(msg *Message) error {
+	peers := []io.Writer{}
+	for _, peer := range s.peers {
+		peers = append(peers, peer)
+	}
+	mw := io.MultiWriter(peers...)
+	return gob.NewEncoder(mw).Encode(msg)
+}
+
+func (s *FileServer) StoreData(key string, r io.Reader) error {
+	// 1. store this file to disk
+	// 2. broadcast this file to all known peers in the network
+	buf := new(bytes.Buffer)
+	tee := io.TeeReader(r, buf)
+
+	if err := s.store.Write(key, tee); err != nil {
+		return err
+	}
+
+	p := &DataMessage{
+		Key:  key,
+		Data: buf.Bytes(),
+	}
+
+	return s.broadcast(&Message{
+		From:    "todo",
+		Payload: p,
+	})
 }
 
 func (s *FileServer) Stop() {
@@ -59,12 +102,26 @@ func (s *FileServer) loop() {
 	for {
 		select {
 		case msg := <-s.Transport.Consume():
-			fmt.Println(msg)
+			var m Message
+			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&m); err != nil {
+				log.Printf("\nError decoding payload: %s", err)
+			}
+			if err := s.handleMessage(&m); err != nil {
+				log.Printf("\nError while handling the message: %s", err)
+			}
 		case <-s.quitCh:
 			return
 
 		}
 	}
+}
+
+func (s *FileServer) handleMessage(m *Message) error {
+	switch v := m.Payload.(type) {
+	case *DataMessage:
+		fmt.Printf("received data: %+v\n", v)
+	}
+	return nil
 }
 
 func (s *FileServer) bootStrapNetwork() error {
